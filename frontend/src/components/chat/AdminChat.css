@@ -1,0 +1,274 @@
+.admin-chat-container {
+  display: flex;
+  height: calc(100vh - 64px);
+  width: 100%;
+  overflow: hidden;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.admin-sidebar {
+  width: 320px;
+  background-color: #fff;
+  border-right: 1px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.03);
+}
+
+.admin-header {
+  padding: 20px;
+  border-bottom: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.admin-header h2 {
+  margin: 0 0 15px 0;
+  font-size: 1.5rem;
+  color: #333;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+.admin-header h2::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 24px;
+  background-color: #ff6b6b;
+  margin-right: 10px;
+  border-radius: 2px;
+}
+
+.agent-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  color: #666;
+  background-color: white;
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e9ecef;
+}
+
+.agent-info svg {
+  color: #ff6b6b;
+  font-size: 1.1rem;
+}
+
+.agent-info span {
+  font-weight: 500;
+}
+
+.staff-badge {
+  background-color: #ff6b6b;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.customer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+}
+
+.customer-list h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 0.95rem;
+  color: #666;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.no-customers {
+  text-align: center;
+  color: #888;
+  padding: 40px 0;
+  font-style: italic;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  border: 1px dashed #ddd;
+}
+
+.customer-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.customer-list li {
+  display: flex;
+  padding: 14px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.customer-list li:hover {
+  background-color: #f8f9fa;
+  border-color: #e9ecef;
+}
+
+.customer-list li.active {
+  background-color: #f0f7ff;
+  border-color: #d0e3ff;
+}
+
+.customer-list li.unread {
+  font-weight: 600;
+}
+
+.customer-list li.needs-attention {
+  background-color: #fff8e6;
+  border-left: 3px solid #ffc107;
+}
+
+.customer-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.customer-name svg {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.customer-last-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.attention-icon {
+  color: #ffc107;
+  font-size: 0.9rem;
+}
+
+.message-preview {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.admin-chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+
+.active-customer-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.customer-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.customer-details svg {
+  color: #ff6b6b;
+  font-size: 1.1rem;
+}
+
+.customer-details h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.admin-messages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background-color: #f9fafb;
+}
+
+.welcome-message {
+  background-color: #f1f5f9;
+  padding: 16px;
+  border-radius: 8px;
+  color: #666;
+  font-size: 0.95rem;
+  max-width: 80%;
+  align-self: center;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-left: 3px solid #ff6b6b;
+}
+
+.no-active-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+  padding: 30px;
+}
+
+.no-active-chat svg {
+  font-size: 3rem;
+  color: #e9ecef;
+  margin-bottom: 20px;
+}
+
+.no-active-chat p {
+  font-size: 1.1rem;
+  color: #888;
+}
+
+@media (max-width: 768px) {
+  .admin-chat-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .admin-sidebar {
+    width: 100%;
+    height: 300px;
+  }
+  
+  .message-preview {
+    max-width: 150px;
+  }
+} 

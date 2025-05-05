@@ -1,0 +1,88 @@
+/* Admin styling */
+.admin-badge {
+  display: flex;
+  align-items: center;
+  background-color: #ff6b6b;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-badge svg {
+  margin-right: 5px;
+  font-size: 12px;
+}
+
+.admin-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  padding: 15px 0;
+}
+
+.admin-header h1 {
+  color: #333;
+  font-size: 1.8rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.admin-header h1 svg {
+  color: #ff6b6b;
+  margin-right: 10px;
+}
+
+.admin-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-breadcrumb {
+  display: flex;
+  align-items: center;
+  color: #666;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.admin-breadcrumb svg {
+  margin: 0 8px;
+  font-size: 10px;
+  color: #999;
+}
+
+.admin-breadcrumb a {
+  color: #ff6b6b;
+  text-decoration: none;
+}
+
+.admin-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.admin-breadcrumb span {
+  color: #666;
+}
+
+/* Admin panel user indicator at top right */
+.admin-user-info {
+  position: fixed;
+  top: 0;
+  right: 20px;
+  background-color: #ff6b6b;
+  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 0 0 6px 6px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.admin-user-info svg {
+  margin-right: 5px;
+} 

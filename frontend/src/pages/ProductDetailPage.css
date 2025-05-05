@@ -1,0 +1,21 @@
+.product-detail-page {
+  margin-bottom: 3rem;
+}
+
+.back-to-products {
+  margin-bottom: 1.5rem;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4a4a4a;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.back-link:hover {
+  color: #ff6b6b;
+} 
