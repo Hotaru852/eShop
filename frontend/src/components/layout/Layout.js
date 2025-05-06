@@ -16,7 +16,7 @@ const Layout = ({ children }) => {
       <main className="main-content">
         {children}
       </main>
-      {chatOpen && !isStaff && <Chat />}
+      {!isStaff && <Chat />}
       <Footer />
     </div>
   );
