@@ -1,11 +1,11 @@
 /**
  * LLM-based Chatbot for e-commerce customer support
- * Uses OpenAI's API to generate more natural and context-aware responses
- * Falls back to basic responses if API key is not available
+ * Uses Google's Gemini API to generate more natural and context-aware responses
+ * Falls back to basic responses if API service is not available
  */
 
 require('dotenv').config();
-const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const emotionDetector = require('./emotionDetector');
 
 // Store conversation contexts for different users
@@ -13,21 +13,20 @@ const userContexts = new Map();
 
 // Track if we're using LLM or fallback mode
 let usingLLM = false;
-let openai = null;
+let genAI = null;
+let geminiModel = null;
 
-// Try to initialize OpenAI client
+// Default Gemini API key (will be overridden by .env if available)
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDgC9wXLHOjkE-yrTiQxXX8twK3qIZt3Dw';
+
+// Try to initialize Gemini client
 try {
-  if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-    usingLLM = true;
-    console.log('OpenAI client initialized successfully. LLM responses enabled.');
-  } else {
-    console.log('No OpenAI API key found. Using fallback response system.');
-  }
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  usingLLM = true;
+  console.log('Google Gemini AI client initialized successfully. LLM responses enabled.');
 } catch (error) {
-  console.error('Error initializing OpenAI client:', error);
+  console.error('Error initializing Gemini AI client:', error);
   console.log('Using fallback response system.');
 }
 
@@ -91,7 +90,7 @@ const fallbackResponses = [
 ];
 
 /**
- * Generate a response using OpenAI's LLM or fallback to keyword matching
+ * Generate a response using Google's Gemini AI or fallback to keyword matching
  * 
  * @param {string} message - The customer's message
  * @param {string} userId - Unique identifier for the user
@@ -102,8 +101,8 @@ async function generateLLMResponse(message, userId) {
     return "I'm here to help! Feel free to ask any questions about our products or services.";
   }
   
-  // If OpenAI is not available, use fallback
-  if (!usingLLM) {
+  // If Gemini is not available, use fallback
+  if (!usingLLM || !geminiModel) {
     return generateFallbackResponse(message);
   }
   
@@ -120,21 +119,25 @@ async function generateLLMResponse(message, userId) {
     content: message
   });
   
-  // Prepare messages for API call
-  const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...conversationHistory.slice(-10) // Keep only the last 10 messages for context window
-  ];
+  // Format conversation history for Gemini
+  const formattedHistory = conversationHistory.slice(-10).map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'model',
+    parts: [{ text: msg.content }]
+  }));
   
   try {
-    const response = await openai.chat.completions.create({
-      model: process.env.MODEL_NAME || 'gpt-3.5-turbo',
-      messages: messages,
-      max_tokens: parseInt(process.env.MAX_TOKENS || '150'),
-      temperature: parseFloat(process.env.TEMPERATURE || '0.7'),
+    // Start a new chat session
+    const chat = geminiModel.startChat({
+      history: formattedHistory,
+      generationConfig: {
+        maxOutputTokens: 150,
+        temperature: 0.7,
+      },
     });
     
-    const assistantMessage = response.choices[0].message.content.trim();
+    // Get response from Gemini
+    const result = await chat.sendMessage(message);
+    const assistantMessage = result.response.text().trim();
     
     // Add the assistant's response to conversation history
     conversationHistory.push({
@@ -149,7 +152,7 @@ async function generateLLMResponse(message, userId) {
     
     return assistantMessage;
   } catch (error) {
-    console.error('Error generating LLM response:', error);
+    console.error('Error generating Gemini response:', error);
     // Fall back to basic responses
     return generateFallbackResponse(message);
   }
