@@ -22,7 +22,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyDgC9wXLHOjkE-yrTiQxX
 // Try to initialize Gemini client
 try {
   genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  geminiModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   usingLLM = true;
   console.log('Google Gemini AI client initialized successfully. LLM responses enabled.');
 } catch (error) {
