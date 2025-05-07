@@ -16,8 +16,10 @@ const Header = () => {
   const { isAuthenticated, user, logout, isStaff } = useAuth();
   const navigate = useNavigate();
   
-  // Use custom hook for dropdown management
-  const { isOpen: dropdownOpen, toggle: toggleDropdown, ref: dropdownRef } = useDropdown(false);
+  // Use custom hook for dropdown management with persistence
+  // Use a different key based on user role to ensure both regular users and staff have closed dropdowns on login
+  const persistKey = isStaff ? 'staffDropdown' : 'userDropdown';
+  const { isOpen: dropdownOpen, toggle: toggleDropdown, ref: dropdownRef } = useDropdown(false, null, persistKey);
   
   const handleLogout = async () => {
     await logout();

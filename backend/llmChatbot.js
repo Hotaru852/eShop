@@ -7,9 +7,13 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const emotionDetector = require('./emotionDetector');
+const escalationConfig = require('./config/escalationKeywords');
 
 // Store conversation contexts for different users
 const userContexts = new Map();
+
+// Track which chats have human agents assigned
+const humanAgentChats = new Map();
 
 // Track if we're using LLM or fallback mode
 let usingLLM = false;
@@ -32,11 +36,11 @@ try {
 
 // System prompt that guides the LLM behavior
 const SYSTEM_PROMPT = `
-You are a helpful, friendly customer support assistant for an e-commerce store called eShop.
-Your goal is to assist customers with their inquiries about products, orders, shipping, returns, and other related topics.
-Be concise, accurate, and friendly in your responses.
+You are a customer support assistant for eShop.
+Only provide information related to eShop products, orders, shipping, returns, and related topics.
+Be concise and accurate in your responses.
 
-Here are some facts about eShop:
+Here are the facts about eShop:
 - We offer free shipping on orders over $50
 - Our return policy allows returns within 30 days of purchase
 - We accept all major credit cards, PayPal, and Apple Pay
@@ -44,8 +48,6 @@ Here are some facts about eShop:
 - Express shipping takes 1-2 business days
 - New customers can use code "WELCOME10" for 10% off their first purchase
 - Our customer service hours are Monday-Friday, 9am-6pm EST
-
-If you don't know the answer to a question, acknowledge that and offer to connect the customer with a human representative.
 `;
 
 // Fallback responses database - used when no API key is available
@@ -190,16 +192,32 @@ function generateFallbackResponse(message) {
  * @param {string} message - The customer's message
  * @param {string} userId - Unique identifier for the user
  * @param {Array} conversationHistory - Previous messages in the conversation
- * @return {boolean} Whether to use LLM response
+ * @param {boolean} isCustomer - Whether this is a customer message
+ * @return {Promise<boolean>} Whether to use LLM response
  */
-function shouldUseLLM(message, userId, conversationHistory = []) {
+async function shouldUseLLM(message, userId, conversationHistory = [], isCustomer = true) {
   if (!message || typeof message !== 'string') {
+    return true;
+  }
+  
+  console.log(`[DEBUG] Checking if should use LLM for message: "${message}", isCustomer=${isCustomer}, userRole=${isCustomer ? 'customer' : 'staff'}`);
+  
+  // If this is a staff message, don't analyze it for emotional content
+  if (!isCustomer) {
+    console.log(`[DEBUG] Message is from staff, skipping emotion detection`);
     return true;
   }
   
   // If we're not using LLM mode at all, still return true to use the fallback system
   if (!usingLLM) {
+    console.log(`[DEBUG] LLM not available, using fallback system`);
     return true;
+  }
+  
+  // Check if this chat has a human agent assigned
+  if (humanAgentChats.has(userId) && humanAgentChats.get(userId) === true) {
+    console.log(`[DEBUG] Chat ${userId} has a human agent assigned, skipping LLM`);
+    return false; // Don't use LLM if a human agent is assigned
   }
   
   // Get conversation history for this user if not provided
@@ -213,45 +231,120 @@ function shouldUseLLM(message, userId, conversationHistory = []) {
     }));
   }
 
-  // Check for emotional content that needs human intervention
-  if (emotionDetector.needsHumanIntervention(message, conversationHistory)) {
-    return false;
-  }
-  
-  // Check if message explicitly requests human assistance
-  const humanAssistancePatterns = [
-    'speak to human',
-    'talk to human', 
-    'real person',
-    'real representative',
-    'speak to representative',
-    'connect me with agent',
-    'connect with support',
-    'human support',
-    'live agent'
-  ];
+  // Use the escalation keywords from configuration
+  const { humanAssistancePatterns, escalationKeywords, financialPatterns } = escalationConfig;
   
   const lowercaseMessage = message.toLowerCase();
+  
+  // Check for financial amounts which might indicate refund requests
+  const containsMoneyAmount = financialPatterns.moneyRegex.test(message);
+  
   if (humanAssistancePatterns.some(pattern => lowercaseMessage.includes(pattern))) {
+    console.log(`[DEBUG] Customer explicitly requested human support: "${message}"`);
     return false;
   }
   
-  // If conversation history is long (more than 5 exchanges), 
-  // and user messages are consistently long/complex, suggest human assistance
-  if (conversationHistory.length > 10) {
+  // Check if message contains any escalation keywords
+  if (escalationKeywords.some(keyword => lowercaseMessage.includes(keyword))) {
+    console.log(`[DEBUG] Message contains escalation keyword, routing to human: "${message}"`);
+    return false;
+  }
+  
+  // If message contains a money amount and mentions refund-related terms, route to human
+  if (containsMoneyAmount && financialPatterns.refundTerms.test(lowercaseMessage)) {
+    console.log(`[DEBUG] Message contains money amount and refund terminology, routing to human: "${message}"`);
+    return false;
+  }
+  
+  // Check for emotional content that needs human intervention
+  console.log(`[DEBUG] Checking for emotional content in message "${message}"`);
+  const needsHumanPromise = emotionDetector.needsHumanIntervention(message, conversationHistory);
+  
+  // We need to properly await the Promise result
+  try {
+    const needsHuman = await needsHumanPromise;
+    console.log(`[DEBUG] Emotion detection result: needsHuman = ${needsHuman}`);
+    
+    if (needsHuman) {
+      console.log(`[DEBUG] Emotional content detected, routing to human: "${message}"`);
+      return false;
+    }
+  } catch (error) {
+    console.error('[DEBUG] Error in emotion detection:', error);
+    // On error, default to using LLM
+  }
+  
+  // Check for complex support scenarios that typically need human help
+  const complexSupportPatterns = [
+    'order cancel',
+    'cancellation',
+    'refund',
+    'not working',
+    'broken',
+    'damaged',
+    'wrong item',
+    'missing',
+    'complaint',
+    'issue with my order',
+    'never arrived',
+    'lost',
+    'defective'
+  ];
+  
+  // Only route to human if these patterns appear with certain intensity markers
+  const intensityMarkers = [
+    'very', 'extremely', 'urgent', 'immediately', 'serious', 'worst', 
+    'terrible', 'horrible', 'awful', 'unacceptable'
+  ];
+  
+  // Check if both a complex issue AND intensity marker are present
+  const hasComplexIssue = complexSupportPatterns.some(pattern => lowercaseMessage.includes(pattern));
+  const hasIntensityMarker = intensityMarkers.some(pattern => lowercaseMessage.includes(pattern));
+  
+  if (hasComplexIssue && hasIntensityMarker) {
+    console.log(`Complex issue with high intensity detected: "${message}"`);
+    return false;
+  }
+  
+  // If conversation history is long and complex, suggest human assistance
+  if (conversationHistory.length > 8) {
     const userMessages = conversationHistory.filter(msg => 
       typeof msg === 'object' && msg.isCustomer === true
     );
-    const complexMessages = userMessages.filter(msg => 
+    
+    // Check if there are multiple long messages (potentially complex issues)
+    const longMessages = userMessages.filter(msg => 
       msg.message && msg.message.length > 100
     );
     
-    if (complexMessages.length > 3 && message.length > 100) {
+    if (longMessages.length >= 3 && message.length > 100) {
+      console.log(`Long conversation with complex messages detected (${longMessages.length} long messages)`);
       return false;
     }
   }
   
+  // Default to using the LLM for most cases
   return true;
+}
+
+/**
+ * Mark a chat as having a human agent (to prevent bot responses)
+ * 
+ * @param {string} userId - Unique identifier for the user
+ * @param {boolean} hasAgent - Whether a human agent is assigned
+ */
+function setHumanAgentStatus(userId, hasAgent = true) {
+  humanAgentChats.set(userId, hasAgent);
+}
+
+/**
+ * Check if a chat has a human agent assigned
+ * 
+ * @param {string} userId - Unique identifier for the user
+ * @return {boolean} Whether a human agent is assigned
+ */
+function hasHumanAgent(userId) {
+  return humanAgentChats.has(userId) && humanAgentChats.get(userId) === true;
 }
 
 /**
@@ -260,13 +353,28 @@ function shouldUseLLM(message, userId, conversationHistory = []) {
  * @param {string} userId - Unique identifier for the user
  */
 function clearUserContext(userId) {
+  console.log(`Clearing context for user ${userId}`);
+  
+  // Remove conversation history
   if (userContexts.has(userId)) {
     userContexts.delete(userId);
   }
+  
+  // Clear human agent status when context is cleared
+  if (humanAgentChats.has(userId)) {
+    humanAgentChats.delete(userId);
+  }
+  
+  // Clear any pending emotion analysis
+  emotionDetector.resetUserState(userId);
+  
+  console.log(`Context cleared for user ${userId}`);
 }
 
 module.exports = {
   generateLLMResponse,
   shouldUseLLM,
-  clearUserContext
+  clearUserContext,
+  setHumanAgentStatus,
+  hasHumanAgent
 }; 

@@ -7,9 +7,31 @@ const llmChatbot = require('./llmChatbot'); // Import the LLM chatbot module
 const cookieParser = require('cookie-parser');
 const auth = require('./auth');
 const jwt = require('jsonwebtoken');
+const emotionDetector = require('./emotionDetector'); // Import the emotion detector module
 
 // Secret key for JWT token
 const JWT_SECRET = process.env.JWT_SECRET || 'eShop-super-secret-key-change-in-production';
+
+// Function to find all sockets for a specific user
+function findUserSockets(io, userId) {
+  if (!userId) return [];
+  
+  const sockets = [];
+  
+  // Loop through all sockets connected to the server
+  for (const [socketId, socket] of io.sockets.sockets.entries()) {
+    if (socket.user && (
+        // Match by string userId for customers
+        (socket.user.role === 'customer' && socket.user.id.toString() === userId.toString()) ||
+        // For staff, check if they're handling this user
+        (socket.user.role === 'staff' && socket.agentFor && socket.agentFor.toString() === userId.toString())
+      )) {
+      sockets.push(socket);
+    }
+  }
+  
+  return sockets;
+}
 
 // Create Express app
 const app = express();
@@ -21,6 +43,38 @@ const io = new Server(server, {
     credentials: true
   }
 });
+
+// Track recent messages to prevent duplicates
+const recentMessages = new Map();
+
+// Function to check for and prevent duplicate messages
+function isDuplicateMessage(userId, message) {
+  // Get user's recent messages
+  if (!recentMessages.has(userId)) {
+    recentMessages.set(userId, []);
+  }
+  
+  const userMessages = recentMessages.get(userId);
+  
+  // Check if this message is a duplicate (same content within 2 seconds)
+  const now = Date.now();
+  const isDuplicate = userMessages.some(msg => 
+    msg.content === message && (now - msg.timestamp) < 2000
+  );
+  
+  // Add this message to recent list
+  userMessages.push({
+    content: message,
+    timestamp: now
+  });
+  
+  // Keep only last 10 messages
+  if (userMessages.length > 10) {
+    recentMessages.set(userId, userMessages.slice(-10));
+  }
+  
+  return isDuplicate;
+}
 
 // Middleware
 app.use(cors({
@@ -562,6 +616,18 @@ app.post('/api/orders', (req, res) => {
 
 // Socket.IO middleware for authentication
 io.use((socket, next) => {
+  // For staff testing, accept the staffUser object directly
+  if (socket.handshake.auth.staffUser) {
+    const staffUser = socket.handshake.auth.staffUser;
+    socket.user = {
+      id: staffUser.id,
+      username: staffUser.username,
+      role: 'staff'
+    };
+    return next();
+  }
+
+  // Normal authentication via token
   const token = socket.handshake.auth.token || socket.handshake.headers.cookie?.split('=')[1];
   
   if (!token) {
@@ -583,6 +649,12 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id, 'as', socket.user.username, 'with role', socket.user.role);
   
+  // If staff, join a staff room for broadcasts
+  if (socket.user.role === 'staff') {
+    socket.join('staff');
+    console.log(`Staff ${socket.user.username} joined staff room`);
+  }
+  
   // Store conversation history for this socket
   const conversationHistory = [];
   
@@ -600,6 +672,11 @@ io.on('connection', (socket) => {
     // Clear any previous context for this user
     llmChatbot.clearUserContext(userId);
     
+    // We're no longer sending an automatic welcome message from the server
+    // since the frontend already shows one via ChatContext.js
+    
+    /* 
+    // The code below is removed to prevent duplicate welcome messages
     // Generate welcome message
     let welcomeMessage = 'Welcome to eShop customer support! How can I help you today?';
     
@@ -617,6 +694,7 @@ io.on('connection', (socket) => {
     setTimeout(() => {
       const welcomeMessageObj = {
         userId,
+        username: "AI Assistant",
         message: welcomeMessage,
         isCustomer: false,
         isAutomatic: true,
@@ -627,6 +705,7 @@ io.on('connection', (socket) => {
       // Add to conversation history
       conversationHistory.push(welcomeMessageObj);
     }, 1000);
+    */
   });
   
   // Support agent joining a chat
@@ -638,12 +717,33 @@ io.on('connection', (socket) => {
     }
     
     const { userId, agentName } = data;
+    
+    // Ensure userId is valid
+    if (!userId || userId === 'undefined') {
+      console.error('Invalid userId in join_chat_as_agent:', userId);
+      socket.emit('error', { message: 'Invalid userId provided' });
+      return;
+    }
+    
+    // Log and join the room
+    console.log(`Agent ${agentName} (${socket.id}) joining room for user ${userId}`);
     socket.join(`user_${userId}`);
-    console.log(`Agent ${agentName} joined chat for user ${userId}`);
+    
+    // Debug - check what rooms this socket is in after joining
+    console.log(`Rooms for socket ${socket.id}:`, Array.from(socket.rooms));
     
     // Store that this agent is handling this customer
     socket.agentFor = userId;
     socket.agentName = agentName;
+    
+    // Mark this chat as having a human agent so the bot won't respond
+    llmChatbot.setHumanAgentStatus(userId, true);
+    
+    // Send a confirmation to the staff
+    socket.emit('join_confirmation', {
+      userId,
+      message: `You are now connected to user ${userId}`
+    });
   });
   
   // Handle human support representative joining the chat
@@ -656,24 +756,200 @@ io.on('connection', (socket) => {
     
     const { userId, agentName } = data;
     
+    // Mark this chat as having a human agent so the bot won't respond
+    llmChatbot.setHumanAgentStatus(userId, true);
+    
+    // Create the join message
+    const joinMessage = `${agentName || 'A customer service representative'} has joined the chat.`;
+    
+    // Check for duplicate join messages
+    if (isDuplicateMessage(userId, joinMessage)) {
+      console.log(`Skipping duplicate join message for ${userId}`);
+      return;
+    }
+    
     // Broadcast to the specific user that human support has joined
     io.to(`user_${userId}`).emit('human_joined', {
       userId,
       agentName: agentName || 'Customer Support'
     });
     
+    // Create the system message object
+    const systemMessage = {
+      userId,
+      username: 'System',
+      message: joinMessage,
+      isCustomer: false,
+      isSystem: true,
+      id: `join-${Date.now()}`,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Send the system message only to customer sockets, not to staff
+    // Find all sockets for this user
+    const userSockets = findUserSockets(io, userId);
+    userSockets.forEach(userSocket => {
+      // Only send to customer sockets, not staff
+      if (userSocket.user.role === 'customer') {
+        userSocket.emit('receive_message', systemMessage);
+      }
+    });
+    
     console.log(`Human support (${agentName}) joined for user ${userId}`);
+  });
+  
+  // Handle ending a chat session by staff
+  socket.on('end_session', (data) => {
+    // Only allow staff to send these events
+    if (socket.user.role !== 'staff') {
+      socket.emit('error', { message: 'Unauthorized: Only support staff can end sessions' });
+      return;
+    }
+    
+    const { userId, agentName } = data;
+    
+    // Ensure userId is valid
+    if (!userId || userId === 'undefined') {
+      console.error('Invalid userId in end_session:', userId);
+      return;
+    }
+    
+    console.log(`Staff ending chat session for user ${userId}`);
+    
+    // Construct the end session message
+    const messageText = `${agentName || 'Support staff'} has ended this support session. You can continue chatting with our AI assistant if you have more questions.`;
+    
+    // Check for duplicate end session messages
+    if (isDuplicateMessage(userId, messageText)) {
+      console.log(`Skipping duplicate end session message for ${userId}`);
+      return;
+    }
+    
+    // Notify customer that the session has ended - just send a single message
+    const endSessionMessage = {
+      userId,
+      username: "System",
+      message: messageText,
+      isCustomer: false,
+      isSystem: true,
+      id: `end-session-${Date.now()}`,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Send system message to the chat room
+    io.to(`user_${userId}`).emit('receive_message', endSessionMessage);
+    
+    // Also emit the staff_left event to trigger client-side handling
+    io.to(`user_${userId}`).emit('staff_left', { 
+      reason: 'Staff ended the session',
+      canContinue: true,
+      userId: userId
+    });
+    
+    console.log(`Emitted staff_left event for userId ${userId}`);
+    
+    // Only reset human agent status without clearing context
+    // This allows the user to continue chatting with the LLM
+    llmChatbot.setHumanAgentStatus(userId, false);
+    
+    console.log(`Chat session for user ${userId} ended by ${agentName}, continuing with LLM`);
+    
+    // Also leave the room
+    socket.leave(`user_${userId}`);
+  });
+  
+  // Handle leaving a chat by staff (without notifying customer)
+  socket.on('leave_chat', (data) => {
+    // Only allow staff to send these events
+    if (socket.user.role !== 'staff') {
+      socket.emit('error', { message: 'Unauthorized: Only support staff can leave chats' });
+      return;
+    }
+    
+    const { userId } = data;
+    
+    // Clear the human agent flag so the bot knows no human is handling this
+    llmChatbot.setHumanAgentStatus(userId, false);
+    
+    // Remove agent from the user's room
+    socket.leave(`user_${userId}`);
+    
+    // Clear agent's association with this customer
+    if (socket.agentFor === userId) {
+      socket.agentFor = null;
+      socket.agentName = null;
+    }
+    
+    console.log(`Staff left chat for user ${userId}`);
   });
   
   // Handle chat messages
   socket.on('send_message', async (data) => {
-    const { userId, message, isCustomer } = data;
+    let { userId, message, isCustomer } = data;
+    
+    // Debug log for every message
+    console.log('[DEBUG] SEND_MESSAGE event received:', {
+      userId,
+      message: message.substring(0, 30) + (message.length > 30 ? '...' : ''),
+      isCustomer,
+      socketId: socket.id,
+      userRole: socket.user?.role,
+      id: data.id
+    });
+    
+    // Ensure isCustomer flag is set correctly based on the role, not just the data
+    // This ensures staff messages can't accidentally be treated as customer messages
+    if (socket.user.role === 'staff') {
+      console.log('[DEBUG] Message is from staff, forcing isCustomer=false');
+      isCustomer = false; // Force staff messages to be marked as non-customer
+      // Skip emotion detection and LLM for staff messages
+      data.isCustomer = false;
+    } else if (socket.user.role === 'customer') {
+      console.log('[DEBUG] Message is from customer, forcing isCustomer=true');
+      isCustomer = true;  // Force customer messages to be marked as customer
+    }
+    
+    // Strict validation for userId to prevent "undefined" issues
+    if (!userId || userId === 'undefined' || userId === undefined) {
+      console.error('[DEBUG] Invalid or undefined userId in message:', data);
+      socket.emit('error', { message: 'Invalid userId: userId cannot be undefined or empty' });
+      return;
+    }
+    
+    // Check for duplicate messages
+    if (isDuplicateMessage(userId, message)) {
+      console.log(`Skipping duplicate message from ${userId}: "${message}"`);
+      return;
+    }
+    
+    // Ensure username is always available and never undefined
+    const username = (data.username && data.username !== 'undefined')
+      ? data.username
+      : (socket.user?.username && socket.user.username !== 'undefined')
+        ? socket.user.username
+        : (isCustomer ? `User ${userId}` : 'Support Staff');
+    
+    // Create sanitized message data with guaranteed username and userId
+    const sanitizedData = {
+      ...data,
+      id: data.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Unique ID for de-duplication
+      userId: String(userId), // Ensure userId is a string
+      username: username,
+      isCustomer: isCustomer // Ensure the isCustomer flag is correct
+    };
     
     // Validate the sender is authorized
     if (isCustomer) {
       // If message is marked as from customer, verify sender is that customer
       if (socket.user.role === 'customer' && socket.user.id !== parseInt(userId)) {
         socket.emit('error', { message: 'Unauthorized: Cannot send messages on behalf of other users' });
+        return;
+      }
+      
+      // Make sure we're not mistaking staff for customers (safety check)
+      if (socket.user.role === 'staff') {
+        console.error('Staff user incorrectly marked as customer in message:', sanitizedData);
+        socket.emit('error', { message: 'Invalid message format: Staff user marked as customer' });
         return;
       }
     } else {
@@ -684,27 +960,89 @@ io.on('connection', (socket) => {
       }
     }
     
+    // Skip emotion detection for staff messages
+    if (!isCustomer) {
+      // Support staff message - send only to the specific customer with username
+      console.log(`Sending staff message to user_${userId}:`, {
+        message: message.substring(0, 30) + (message.length > 30 ? '...' : ''),
+        from: username,
+        id: sanitizedData.id
+      });
+      
+      // Create the message object once
+      const staffMessageObj = {
+        userId: sanitizedData.userId,
+        username: sanitizedData.username,
+        message,
+        isCustomer: false,
+        id: sanitizedData.id,
+        timestamp: new Date().toISOString()
+      };
+      
+      // First try using room-based delivery
+      io.to(`user_${userId}`).emit('receive_message', staffMessageObj);
+      
+      // Also try direct delivery - find all sockets for this user
+      const userSockets = findUserSockets(io, userId);
+      console.log(`Found ${userSockets.length} sockets for user ${userId}`);
+      
+      // Send directly to each user socket
+      userSockets.forEach(userSocket => {
+        if (userSocket.user.role === 'customer') {
+          userSocket.emit('receive_message', staffMessageObj);
+          console.log(`Directly sent message to user socket ${userSocket.id}`);
+        }
+      });
+      
+      // Debug log for message sent
+      console.log(`Staff message sent to user ${userId}`);
+      
+      // Exit early for staff messages - they don't need emotion detection
+      return;
+    }
+    
     // Add message to conversation history
     const customerMessage = {
-      ...data,
+      ...sanitizedData,
       timestamp: new Date().toISOString()
     };
     conversationHistory.push(customerMessage);
     
-    // Store message in database if needed
-    
     // Send to specific user's room
     if (isCustomer) {
-      // Customer message - broadcast to all support staff
-      socket.broadcast.emit('receive_message', {
-        userId,
-        message,
-        isCustomer: true,
-        timestamp: new Date().toISOString()
-      });
+      // Only broadcast customer messages to staff if human intervention is needed
+      // Check if this chat has a human agent assigned or is flagged for human intervention
+      const shouldUseBot = await llmChatbot.shouldUseLLM(message, userId, conversationHistory, isCustomer);
+      const hasHumanAgent = llmChatbot.hasHumanAgent(userId);
+      
+      // Only show in staff dashboard if it needs human intervention or already has human agent
+      if (!shouldUseBot || hasHumanAgent) {
+        // Customer message - broadcast to all support staff
+        socket.broadcast.emit('receive_message', {
+          userId: sanitizedData.userId,
+          username: sanitizedData.username,
+          message,
+          isCustomer: true,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Check if this chat has a human agent assigned - if so, don't use the bot
+      if (hasHumanAgent) {
+        console.log(`User ${userId} has a human agent, skipping automated response`);
+        return;
+      }
       
       // Generate and send automated response if appropriate
-      if (llmChatbot.shouldUseLLM(message, userId, conversationHistory)) {
+      if (shouldUseBot) {
+        console.log(`[DEBUG] shouldUseLLM returned TRUE, using LLM for "${message}"`);
+        
+        // Double-check this isn't a staff message before proceeding
+        if (!isCustomer || socket.user.role === 'staff') {
+          console.log('[DEBUG] Skipping LLM for staff message');
+          return;
+        }
+        
         // "Typing" indicator
         io.to(`user_${userId}`).emit('typing_indicator', { isTyping: true });
         
@@ -720,7 +1058,8 @@ io.on('connection', (socket) => {
             io.to(`user_${userId}`).emit('typing_indicator', { isTyping: false });
             
             const botResponse = {
-              userId,
+              userId: sanitizedData.userId,
+              username: "AI Assistant",
               message: response,
               isCustomer: false,
               isAutomatic: true,
@@ -730,9 +1069,6 @@ io.on('connection', (socket) => {
             // Send to the customer
             io.to(`user_${userId}`).emit('receive_message', botResponse);
             
-            // And also to support staff
-            socket.broadcast.emit('receive_message', botResponse);
-            
             // Add bot response to conversation history
             conversationHistory.push(botResponse);
           }, typingDelay);
@@ -741,21 +1077,28 @@ io.on('connection', (socket) => {
           io.to(`user_${userId}`).emit('typing_indicator', { isTyping: false });
         }
       } else {
+        console.log(`[DEBUG] shouldUseLLM returned FALSE, routing to human for "${message}"`);
+        
         // Emotion detection indicates this needs human attention
         // Notify support staff about needed intervention
         socket.broadcast.emit('human_needed', {
-          userId,
+          userId: sanitizedData.userId,
+          username: sanitizedData.username,
           message,
-          reason: 'Negative emotion detected'
+          reason: 'Negative emotion detected',
+          isStaff: socket.user.role === 'staff', // Add this flag to identify staff messages
+          isCustomer // Also include the isCustomer flag for additional validation
         });
         
         // Notify customer that a human will join shortly
         const handoffMessage = {
-          userId,
+          userId: sanitizedData.userId,
+          username: "AI Assistant",
           message: "I notice you might be experiencing some frustration. I'm connecting you with a customer service representative who will be with you shortly to help resolve your concern.",
           isCustomer: false,
           isAutomatic: true,
           isHandoff: true,
+          id: `handoff-${Date.now()}`,
           timestamp: new Date().toISOString()
         };
         
@@ -763,8 +1106,10 @@ io.on('connection', (socket) => {
         conversationHistory.push(handoffMessage);
       }
     } else {
-      // Support staff message - send only to the specific customer
+      // Support staff message - send only to the specific customer with username
       io.to(`user_${userId}`).emit('receive_message', {
+        userId: sanitizedData.userId,
+        username: sanitizedData.username,
         message,
         isCustomer: false,
         timestamp: new Date().toISOString()
@@ -777,15 +1122,36 @@ io.on('connection', (socket) => {
     
     // If this was an agent, notify their customers they've left
     if (socket.agentFor) {
+      // Create the disconnect message
+      const disconnectMessage = `${socket.agentName || 'Support staff'} has left the chat. You can continue chatting with our AI assistant.`;
+      
+      // Check for duplicate disconnect messages
+      if (isDuplicateMessage(socket.agentFor, disconnectMessage)) {
+        console.log(`Skipping duplicate disconnect message for ${socket.agentFor}`);
+        return;
+      }
+      
       const handoffMessage = {
         userId: socket.agentFor,
-        message: `${socket.agentName || 'Customer support'} has left the chat. Another representative will assist you shortly.`,
+        username: "System",
+        message: disconnectMessage,
         isCustomer: false,
         isSystem: true,
+        id: `disconnect-${Date.now()}`,
         timestamp: new Date().toISOString()
       };
       
       io.to(`user_${socket.agentFor}`).emit('receive_message', handoffMessage);
+      
+      // Also emit the staff_left event to trigger client-side handling
+      io.to(`user_${socket.agentFor}`).emit('staff_left', { 
+        reason: 'Staff disconnected',
+        canContinue: true,
+        userId: socket.agentFor
+      });
+      
+      // Remove human agent status when agent disconnects
+      llmChatbot.setHumanAgentStatus(socket.agentFor, false);
     }
   });
 });

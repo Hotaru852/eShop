@@ -10,7 +10,15 @@ import MessageForm from './MessageForm';
 import './Chat.css';
 
 const Chat = () => {
-  const { messages, sendMessage, toggleChat, isTyping, waitingForHuman, chatOpen } = useChat();
+  const { 
+    messages, 
+    sendMessage, 
+    toggleChat, 
+    isTyping, 
+    waitingForHuman, 
+    chatOpen,
+    clearChat 
+  } = useChat();
   const { isAuthenticated } = useAuth();
   const [isChatVisible, setIsChatVisible] = useState(false);
   const messagesEndRef = useRef(null);
@@ -76,9 +84,7 @@ const Chat = () => {
           
           <div className="chat-messages">
             {messages.length === 0 ? (
-              <div className="welcome-message">
-                <p>Thank you for contacting eShop customer support. Please let us know how we can assist you.</p>
-              </div>
+              null // No fallback welcome message
             ) : (
               messages.map((msg, index) => (
                 <MessageItem key={index} message={msg} />
@@ -95,6 +101,7 @@ const Chat = () => {
             onSendMessage={sendMessage}
             disabled={isTyping || waitingForHuman}
             placeholder={waitingForHuman ? "Waiting for representative..." : "Type your message here..."}
+            autoFocus={true}
           />
         </div>
       )}

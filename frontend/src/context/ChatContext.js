@@ -12,6 +12,9 @@ const socket = io('http://localhost:5000', {
   withCredentials: true // Important for sending cookies
 });
 
+// Make socket globally accessible for controlled disconnection during logout
+window.socket = socket;
+
 export const ChatProvider = ({ children }) => {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -71,6 +74,7 @@ export const ChatProvider = ({ children }) => {
       // Add initial professional welcome message
       const welcomeMessage = {
         userId,
+        username: "AI Assistant",
         message: "Hello! Thank you for contacting eShop customer support. How may I assist you today?",
         isCustomer: false,
         isSystem: false,
@@ -109,6 +113,7 @@ export const ChatProvider = ({ children }) => {
       socket.on('receive_message', (data) => {
         const newMessage = {
           ...data,
+          id: data.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Generate ID if not provided
           timestamp: new Date().toISOString()
         };
         
@@ -118,6 +123,27 @@ export const ChatProvider = ({ children }) => {
         }
         
         setMessages((prevMessages) => {
+          // Check for duplicates by comparing content and timestamps (within a small timeframe)
+          const isDuplicate = prevMessages.some(msg => {
+            // Check if the message content is the same
+            const sameContent = msg.message === newMessage.message;
+            
+            // If the content is the same, check if it's within 2 seconds
+            if (sameContent && msg.timestamp && newMessage.timestamp) {
+              const timeDiff = Math.abs(
+                new Date(msg.timestamp).getTime() - new Date(newMessage.timestamp).getTime()
+              );
+              return timeDiff < 2000; // Within 2 seconds
+            }
+            return false;
+          });
+          
+          // Skip adding duplicate messages
+          if (isDuplicate) {
+            console.log('Skipping duplicate message:', newMessage.message);
+            return prevMessages;
+          }
+          
           const updatedMessages = [...prevMessages, newMessage];
           // Save to localStorage
           chatStorage.saveMessages(userId, updatedMessages);
@@ -155,12 +181,32 @@ export const ChatProvider = ({ children }) => {
           });
         }
       });
+      
+      // Listen for staff left event (previously chat_ended)
+      socket.on('staff_left', (data) => {
+        console.log('Received staff_left event:', data);
+        
+        // We still have an active chat but the staff member left
+        // Just reset waiting for human flag
+        setWaitingForHuman(false);
+        
+        // No need to add a second notification - server already sends a system message
+        // via receive_message that will be displayed to the user
+        
+        console.log('Staff member left the chat, continuing with LLM assistant');
+      });
+      
+      // Also listen for errors
+      socket.on('error', (error) => {
+        console.error('[SOCKET ERROR]', error);
+      });
     }
     
     return () => {
       socket.off('receive_message');
       socket.off('typing_indicator');
       socket.off('human_joined');
+      socket.off('staff_left');
     };
   }, [connected, chatOpen, userId, setMessages, setWaitingForHuman, setIsTyping, setUnreadCount]);
   
@@ -176,6 +222,7 @@ export const ChatProvider = ({ children }) => {
     if (connected && message.trim() !== '' && userId) {
       const messageData = {
         userId,
+        username: user?.username || `User ${userId}`,
         message,
         isCustomer: true,
         timestamp: new Date().toISOString()
@@ -214,13 +261,15 @@ export const ChatProvider = ({ children }) => {
     <ChatContext.Provider value={{
       connected,
       messages,
+      setMessages,
       unreadCount,
       chatOpen,
       isTyping,
       waitingForHuman,
       sendMessage,
       toggleChat,
-      clearChat
+      clearChat,
+      userId
     }}>
       {children}
     </ChatContext.Provider>

@@ -149,11 +149,22 @@
   margin-bottom: 6px;
   font-size: 0.95rem;
   color: #333;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .customer-name svg {
   color: #666;
   font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.customer-name span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .customer-last-message {
@@ -221,6 +232,42 @@
   flex-direction: column;
   gap: 15px;
   background-color: #f9fafb;
+}
+
+/* Chat actions area */
+.admin-chat-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 20px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  border-bottom: 1px solid #e9ecef;
+}
+
+/* End chat button styling */
+.end-chat-button {
+  padding: 8px 16px;
+  background-color: #f8f9fa;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.end-chat-button:hover {
+  background-color: #ff6b6b;
+  color: white;
+  border-color: #ff6b6b;
+}
+
+.end-chat-button svg {
+  font-size: 0.9rem;
 }
 
 .welcome-message {

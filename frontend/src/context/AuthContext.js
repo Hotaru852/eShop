@@ -16,6 +16,26 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       try {
         setLoading(true);
+        
+        // Check for staff user in localStorage first (for testing multiple users)
+        const storedStaffUser = localStorage.getItem('staffUser');
+        if (storedStaffUser) {
+          try {
+            const staffUserData = JSON.parse(storedStaffUser);
+            // If this is a staff tab, use the stored staff user
+            if (window.location.pathname.includes('/admin')) {
+              setUser(staffUserData);
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('Error parsing stored staff user:', err);
+            // Clear invalid data
+            localStorage.removeItem('staffUser');
+          }
+        }
+        
+        // Otherwise use normal cookie auth
         const response = await fetch('http://localhost:5000/api/auth/me', {
           method: 'GET',
           credentials: 'include', // Include cookies
@@ -53,36 +73,77 @@ export const AuthProvider = ({ children }) => {
           role: 'staff'
         };
         
+        // Store staff user in localStorage for testing multi-user
+        localStorage.setItem('staffUser', JSON.stringify(staffUser));
+        
         setUser(staffUser);
         navigate('/admin/chat');
         return { user: staffUser };
       }
 
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies
-        body: JSON.stringify({ usernameOrEmail, password, rememberMe }),
-      });
+      // Check if we're testing with a staff user in a different tab
+      const storedStaffUser = localStorage.getItem('staffUser');
+      if (storedStaffUser) {
+        try {
+          // If we have a stored staff user, we need to use normal cookie auth
+          // to avoid conflicts
+          const response = await fetch('http://localhost:5000/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include', // Include cookies
+            body: JSON.stringify({ usernameOrEmail, password, rememberMe }),
+          });
 
-      const data = await response.json();
+          const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
+          if (!response.ok) {
+            throw new Error(data.message || 'Login failed');
+          }
 
-      setUser(data.user);
-      
-      // Redirect based on user role
-      if (data.user.role === 'staff') {
-        navigate('/admin/chat');
+          setUser(data.user);
+          
+          // Redirect based on user role
+          if (data.user.role === 'staff') {
+            navigate('/admin/chat');
+          } else {
+            navigate('/');
+          }
+
+          return data;
+        } catch (err) {
+          setError(err.message);
+          throw err;
+        }
       } else {
-        navigate('/');
-      }
+        // Normal login flow
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Include cookies
+          body: JSON.stringify({ usernameOrEmail, password, rememberMe }),
+        });
 
-      return data;
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Login failed');
+        }
+
+        setUser(data.user);
+        
+        // Redirect based on user role
+        if (data.user.role === 'staff') {
+          navigate('/admin/chat');
+        } else {
+          navigate('/');
+        }
+
+        return data;
+      }
     } catch (err) {
       setError(err.message);
       throw err;
@@ -187,8 +248,35 @@ export const AuthProvider = ({ children }) => {
       chatStorage.clearAllChats();
       
       // Reset any UI state persisted in localStorage
-      uiStorage.clearAllState(['chatOpen', 'dropdownOpen']);
+      uiStorage.clearAllState(['chatOpen', 'dropdownOpen', 'userDropdown', 'staffDropdown']);
       
+      // Check if we're logging out a staff user
+      const isStaffUser = user?.role === 'staff';
+      const storedStaffUser = localStorage.getItem('staffUser');
+      
+      // If we're on the admin page and have a stored staff user
+      if (isStaffUser && storedStaffUser && window.location.pathname.includes('/admin')) {
+        // Just clear the localStorage staff user
+        localStorage.removeItem('staffUser');
+        setUser(null);
+        navigate('/login');
+        return;
+      }
+      
+      // Force disconnect any socket connections
+      // This will close connections immediately rather than waiting for timeouts
+      if (window.socket) {
+        console.log('Disconnecting customer socket during logout');
+        window.socket.disconnect();
+      }
+      
+      // Also disconnect admin socket if it exists
+      if (window.adminSocket) {
+        console.log('Disconnecting admin socket during logout');
+        window.adminSocket.disconnect();
+      }
+      
+      // Normal logout via API
       await fetch('http://localhost:5000/api/auth/logout', {
         method: 'GET',
         credentials: 'include', // Include cookies

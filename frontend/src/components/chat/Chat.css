@@ -102,6 +102,30 @@
   border: 1px solid #eee;
 }
 
+.message-sender {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 0.3rem;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.customer-message .message-sender {
+  color: #3a7bd5;
+  text-align: right;
+}
+
+.support-message .message-sender {
+  color: #ff6b6b;
+}
+
+.system-message .message-sender {
+  color: #888;
+  font-style: italic;
+}
+
 .message-text {
   margin-bottom: 0.5rem;
   line-height: 1.5;
@@ -240,10 +264,18 @@
   border-left: 3px solid #999;
 }
 
-/* Handoff messages */
+/* Handoff messages - style like system messages */
 .handoff-message .message-content {
-  background-color: #fff3cd;
-  border-left: 3px solid #ffc107;
+  background-color: #f5f5f5 !important;
+  border-left: 3px solid #999 !important;
+  font-style: italic;
+  color: #666;
+}
+
+.handoff-message .message-text {
+  color: #666 !important;
+  font-weight: normal !important;
+  font-size: 0.95rem !important;
 }
 
 /* Human waiting indicator */
@@ -368,4 +400,31 @@
   background-color: #ff5252;
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(255, 107, 107, 0.4);
+}
+
+/* Admin view specific styling */
+.admin-messages .customer-message .message-sender {
+  color: #ff6b6b;  /* Staff color */
+  text-align: right;
+}
+
+.admin-messages .support-message .message-sender {
+  color: #3a7bd5;  /* Customer color */
+  text-align: left;
+}
+
+/* Staff Status Messages (join/leave) - styled like system messages */
+.staff-status-message .message-content {
+  background-color: #f5f5f5 !important;
+  border-left: 3px solid #999 !important;
+  font-style: italic;
+  padding: 0.9rem 1.1rem !important;
+  margin: 0;
+  font-weight: normal;
+}
+
+.staff-status-message .message-text {
+  color: #666 !important;
+  font-weight: normal !important;
+  font-size: 0.95rem !important;
 } 
