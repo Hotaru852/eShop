@@ -31,13 +31,11 @@ cd eShop
 
 The application uses environment variables for configuration. You may want to customize:
 
-#### For LLM-Powered Chatbot (Optional)
+#### For LLM-Powered Chatbot (Required)
 Create a `.env` file in the `backend` directory with the following content:
 ```
-OPENAI_API_KEY=your_openai_api_key_here
-MODEL_NAME=gpt-3.5-turbo
-MAX_TOKENS=150
-TEMPERATURE=0.7
+GOOGLE_API_KEY=your_google_api_key_here
+MODEL_NAME=gemini-pro
 ```
 
 ### 3. Deployment
@@ -124,14 +122,14 @@ docker-compose logs -f frontend
 ### Chat Features
 
 - **Real-time Messaging**: Instant communication between customers and support
-- **Emotion Detection**: Analyzes customer messages for emotional content
-- **Automatic Routing**: Routes negative interactions to human support representatives
-- **LLM Integration**: Uses language models for automated responses
+- **Context-Aware Responses**: Uses Google's Gemini AI for intelligent conversation handling
+- **Automatic Routing**: Routes complex queries to human support representatives
+- **Conversation History**: Maintains context for more relevant responses
 - **Support Dashboard**: Admin interface for managing customer interactions
 
-### Customizing Emotion Detection
+### Chat System Configuration
 
-The emotion detection algorithm is in `backend/emotionDetector.js`. You can implement your own algorithm by modifying the `analyzeEmotion` function.
+The chat system uses Google's Gemini API for generating responses. The configuration is managed in `backend/chatSystem.js`. The system maintains conversation context and can be customized through the environment variables.
 
 ## Product Comments System
 
