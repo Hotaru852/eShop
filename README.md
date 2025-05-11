@@ -9,6 +9,7 @@ An e-commerce web application featuring an intelligent chat system with emotion 
 - **Shopping Cart**: Add products to cart and manage orders
 - **Customer Support Chat**: Real-time chat for customer assistance
 - **Emotion Detection**: Automatically detects customer emotions and routes negative interactions to human support
+- **Product Comments**: Customer feedback system with staff reply functionality
 - **Dockerized**: Easy deployment with Docker for both development and production
 
 ## Prerequisites
@@ -79,6 +80,7 @@ The application consists of:
 - **Backend**: Node.js Express server with Socket.IO for real-time chat
 - **Database**: SQLite database stored in a Docker volume for persistence
 - **Chat System**: Real-time chat with LLM integration and emotion detection
+- **Comments System**: Product feedback management with staff moderation capabilities
 - **Docker**: Containerized deployment for easy sharing and deployment
 
 ## Development
@@ -130,6 +132,33 @@ docker-compose logs -f frontend
 ### Customizing Emotion Detection
 
 The emotion detection algorithm is in `backend/emotionDetector.js`. You can implement your own algorithm by modifying the `analyzeEmotion` function.
+
+## Product Comments System
+
+### Comments Features
+
+- **Customer Feedback**: Customers can leave comments on products
+- **Staff Replies**: Support staff can respond to customer comments
+- **Real-time Updates**: Comments are updated in real-time
+- **Moderation Tools**: Staff-only access to comment management interface
+- **User Attribution**: Comments are linked to user accounts
+
+### Managing Comments
+
+Staff members can access the comments management system through:
+- Navigate to "Product Comments" in the staff dashboard
+- View all product comments in one centralized location
+- Reply to customer comments as needed
+- Monitor customer feedback across all products
+
+### API Endpoints
+
+The following endpoints are available for comment management:
+```bash
+GET /api/products/:id/comments         # Fetch comments for a specific product
+POST /api/products/:id/comments        # Add a new comment
+POST /api/products/:productId/comments/:commentId/reply  # Staff reply to comment
+```
 
 ## Stopping the Application
 
