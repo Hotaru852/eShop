@@ -531,27 +531,35 @@ app.post('/api/products/:id/comments', (req, res) => {
   );
 });
 
-// Reply to a comment
-app.post('/api/comments/:id/reply', (req, res) => {
-  const commentId = req.params.id;
-  const { reply, isSystem = 0 } = req.body;
-  
-  if (!reply) {
-    return res.status(400).json({ error: 'Reply text is required' });
+// Staff reply to a comment
+app.post('/api/products/:productId/comments/:commentId/reply', (req, res) => {
+  // For quick prototyping, assume req.user is set and has a role
+  const user = req.user || { role: req.body.role, username: req.body.username };
+  if (!user || user.role !== 'staff') {
+    return res.status(403).json({ error: 'Only staff can reply to comments.' });
   }
-  
+  const { commentId } = req.params;
+  const { reply } = req.body;
+  if (!reply || !commentId) {
+    return res.status(400).json({ error: 'Reply text and commentId are required.' });
+  }
+
+  // First delete any existing system replies
   db.run(
-    "INSERT INTO comment_replies (commentId, isSystem, reply) VALUES (?, ?, ?)",
-    [commentId, isSystem, reply],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      
-      res.status(201).json({ 
-        id: this.lastID, 
-        message: 'Reply added successfully' 
-      });
+    `DELETE FROM comment_replies WHERE commentId = ? AND isSystem = 1`,
+    [commentId],
+    (err) => {
+      if (err) return res.status(500).json({ error: 'Database error while removing system reply' });
+
+      // Then add the staff reply
+      db.run(
+        `INSERT INTO comment_replies (commentId, isSystem, reply, timestamp) VALUES (?, 0, ?, datetime('now'))`,
+        [commentId, reply],
+        function (err) {
+          if (err) return res.status(500).json({ error: 'Database error while adding staff reply' });
+          res.json({ success: true, replyId: this.lastID });
+        }
+      );
     }
   );
 });
@@ -1154,6 +1162,33 @@ io.on('connection', (socket) => {
       llmChatbot.setHumanAgentStatus(socket.agentFor, false);
     }
   });
+});
+
+// Get all comments (with replies) for a product
+app.get('/api/products/:productId/comments', (req, res) => {
+  const { productId } = req.params;
+  db.all(
+    `SELECT c.*, 
+      (
+        SELECT json_group_array(json_object('id', r.id, 'reply', r.reply, 'timestamp', r.timestamp, 'isSystem', r.isSystem))
+        FROM comment_replies r WHERE r.commentId = c.id
+      ) as replies
+    FROM comments c WHERE c.productId = ? ORDER BY c.timestamp ASC`,
+    [productId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      // Parse replies JSON for each comment
+      const comments = rows.map(row => ({
+        id: row.id,
+        productId: row.productId,
+        username: row.username,
+        comment: row.comment,
+        timestamp: row.timestamp,
+        replies: row.replies ? JSON.parse(row.replies) : []
+      }));
+      res.json(comments);
+    }
+  );
 });
 
 // Start server

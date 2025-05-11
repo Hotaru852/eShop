@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser, faReply, faCommentDots } from '@fortawesome/free-solid-svg-icons';
 import { productApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './CommentSection.css';
 
 const CommentSection = ({ productId }) => {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { user } = useAuth();
   
   // Fetch comments when component mounts or productId changes
   useEffect(() => {
@@ -34,10 +35,10 @@ const CommentSection = ({ productId }) => {
   const handleSubmitComment = async (e) => {
     e.preventDefault();
     
-    if (!newComment || !username) return;
+    if (!newComment || !user) return;
     
     try {
-      const result = await productApi.addComment(productId, username, newComment);
+      const result = await productApi.addComment(productId, user.username, newComment);
       
       // Refetch comments to get the new comment with system reply
       const updatedComments = await productApi.getProductComments(productId);
@@ -60,18 +61,6 @@ const CommentSection = ({ productId }) => {
       
       {/* Comment form */}
       <form className="comment-form" onSubmit={handleSubmitComment}>
-        <div className="form-group">
-          <label htmlFor="username">Your Name</label>
-          <input
-            type="text"
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your name"
-            required
-          />
-        </div>
-        
         <div className="form-group">
           <label htmlFor="comment">Your Comment</label>
           <textarea

@@ -6,7 +6,8 @@ import {
   faSignOutAlt, 
   faHeadset, 
   faUserCircle,
-  faUser
+  faUser,
+  faCommentDots
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext';
 import useDropdown from '../../hooks/useDropdown';
@@ -46,11 +47,18 @@ const Header = () => {
               )}
               
               {isStaff && (
-                <li>
-                  <Link to="/admin/chat" className="staff-link">
-                    <FontAwesomeIcon icon={faHeadset} /> Support Dashboard
-                  </Link>
-                </li>
+                <>
+                  <li>
+                    <Link to="/admin/chat" className="staff-link">
+                      <FontAwesomeIcon icon={faHeadset} /> Support Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/admin/product-comments" className="staff-link">
+                      <FontAwesomeIcon icon={faCommentDots} /> Product Comments
+                    </Link>
+                  </li>
+                </>
               )}
             </ul>
           </nav>

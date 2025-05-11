@@ -15,6 +15,7 @@ import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import AdminChat from './components/chat/AdminChat';
+import ProductCommentsPage from './pages/ProductCommentsPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import './App.css';
 
@@ -52,6 +53,11 @@ function App() {
                   <Route path="/admin/chat" element={
                     <ProtectedRoute requireStaff={true}>
                       <AdminChat />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/product-comments" element={
+                    <ProtectedRoute requireStaff={true}>
+                      <ProductCommentsPage />
                     </ProtectedRoute>
                   } />
                   

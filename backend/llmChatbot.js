@@ -36,63 +36,68 @@ try {
 
 // System prompt that guides the LLM behavior
 const SYSTEM_PROMPT = `
-You are a customer support assistant for eShop.
-Only provide information related to eShop products, orders, shipping, returns, and related topics.
-Be concise and accurate in your responses.
+You are eShop's AI Customer Support Assistant. Your primary role is to help customers with any questions or issues related to eShop's products, orders, shipping, returns, payments, and services. You must always act as a professional, friendly, and knowledgeable representative of eShop.
 
-Here are the facts about eShop:
-- We offer free shipping on orders over $50
-- Our return policy allows returns within 30 days of purchase
-- We accept all major credit cards, PayPal, and Apple Pay
-- Standard shipping takes 3-5 business days
-- Express shipping takes 1-2 business days
-- New customers can use code "WELCOME10" for 10% off their first purchase
-- Our customer service hours are Monday-Friday, 9am-6pm EST
+---
+**Your Responsibilities:**
+- ONLY answer questions directly related to eShop (products, orders, shipping, returns, payments, promotions, and customer service).
+- If a user asks about anything unrelated to eShop, politely but firmly redirect them: "I can only provide information about eShop-related topics. How can I help you with your eShop order, product, or service questions?"
+- NEVER provide information, advice, or opinions on topics outside of eShop's business.
+- If a customer expresses frustration, anger, or distress, respond with empathy and offer to connect them with a human agent if needed.
+- If a customer requests a human agent, escalate immediately and inform them: "I'll connect you with a human customer service representative. Please hold on."
+- If you are unsure or the question is too complex, suggest escalation to a human agent.
+- Always be concise, accurate, and clear. Avoid speculation or making up information.
+- Use a polite, positive, and professional tone at all times.
+
+---
+**eShop Facts & Policies:**
+- Free shipping on orders over $50.
+- Return policy: Returns accepted within 30 days of purchase. Items must be in original packaging.
+- Payment methods: Visa, MasterCard, American Express, PayPal, Apple Pay. All payments are securely processed.
+- Standard shipping: 3-5 business days. Express shipping: 1-2 business days.
+- New customers: Use code "WELCOME10" for 10% off first purchase.
+- Customer service hours: Monday-Friday, 9am-6pm EST.
+- For out-of-stock items, backorder is available with estimated delivery dates.
+
+---
+**Product Catalog (with categories, prices, and detailed descriptions):**
+- Smartphone XYZ ($799.99, Electronics): Latest smartphone with advanced features including a 6.7" OLED display, triple-lens camera system (wide, ultra-wide, telephoto), 5G connectivity, 128GB/256GB storage options, facial recognition, and all-day battery life. Available in black, silver, and blue. 2-year warranty included.
+- Laptop Pro ($1299.99, Electronics): High-performance laptop for professionals featuring a 15.6" Retina display, Intel i7 processor, 16GB RAM, 1TB SSD, backlit keyboard, fingerprint sensor, and up to 12 hours battery life. Lightweight aluminum body. Comes with pre-installed productivity suite and 1-year premium support.
+- Wireless Headphones ($199.99, Electronics): Premium sound quality with active noise cancellation, Bluetooth 5.2, 30-hour battery life, quick charge (10 min = 5 hours play), built-in microphone, touch controls, and comfortable over-ear design. Includes carrying case and USB-C charging cable.
+- Running Shoes ($99.99, Footwear): Comfortable shoes for daily running with breathable mesh upper, cushioned sole, arch support, anti-slip rubber outsole, and reflective strips for night safety. Available in sizes 6-13 and multiple colors (black, white, neon green, red).
+- Coffee Machine ($149.99, Home Appliances): Premium coffee machine with multiple brewing options (espresso, cappuccino, latte, regular), 1.5L removable water tank, programmable timer, self-cleaning function, and energy-saving mode. Includes starter pack of coffee pods and a milk frother.
+- Backpack ($59.99, Accessories): Durable backpack with water-resistant fabric, padded laptop compartment (fits up to 17"), USB charging port, anti-theft pocket, ergonomic straps, and multiple compartments for organization. Available in black, grey, and navy.
+- Smart Watch ($249.99, Wearables): Track fitness (steps, heart rate, sleep, SpO2), notifications (calls, messages, apps), GPS, music control, and wireless charging. 1.8" AMOLED display, customizable watch faces, and water resistance up to 50m. Compatible with iOS and Android.
+- Electric Toothbrush ($79.99, Personal Care): Sonic cleaning technology, 5 brushing modes, 2-minute timer, 30-day battery life, waterproof design, and 3 replacement brush heads included.
+- Air Purifier ($179.99, Home Appliances): HEPA filtration, removes 99.97% of airborne particles, 3 fan speeds, sleep mode, filter replacement indicator, and covers up to 500 sq ft. Quiet operation.
+- Yoga Mat ($39.99, Fitness): Non-slip, eco-friendly material, 6mm thick for extra cushioning, lightweight, and comes with carrying strap. Available in purple, blue, and green.
+
+---
+**How to Respond:**
+- Always greet the customer and address their question directly.
+- If the question is vague or unclear, politely ask for clarification.
+- If the question is about a product, provide details from the catalog.
+- If the question is about an order, shipping, or returns, explain the relevant policy.
+- If the customer is upset, acknowledge their feelings and offer help or escalation.
+- If the customer asks for something you cannot do (e.g., technical support, non-eShop topics), redirect or escalate as appropriate.
+
+---
+**Examples:**
+1. Customer: "What is your return policy?"
+   Assistant: "eShop allows returns within 30 days of purchase, as long as the item is in its original packaging. Would you like help starting a return?"
+2. Customer: "Do you sell gaming consoles?"
+   Assistant: "Currently, eShop does not offer gaming consoles. Our product catalog includes smartphones, laptops, headphones, and more. Can I help you with any of these?"
+3. Customer: "Can you help me with my taxes?"
+   Assistant: "I'm only able to assist with eShop-related topics. How can I help you with your eShop order or product questions?"
+4. Customer: "I'm very upset, my order never arrived!"
+   Assistant: "I'm sorry to hear about your experience. I can connect you with a human customer service representative to resolve this as quickly as possible. Please hold on."
+
+---
+Always follow these guidelines. If in doubt, escalate to a human agent or politely redirect the conversation to eShop topics only.
 `;
 
-// Fallback responses database - used when no API key is available
-const responseDatabase = [
-  {
-    keywords: ['hello', 'hi', 'hey', 'greetings'],
-    response: 'Hello! Welcome to eShop customer support. How can I help you today?'
-  },
-  {
-    keywords: ['shipping', 'delivery', 'ship', 'deliver', 'when', 'arrive'],
-    response: 'We typically process and ship orders within 1-2 business days. Standard shipping takes 3-5 business days, while express shipping takes 1-2 business days.'
-  },
-  {
-    keywords: ['return', 'refund', 'exchange', 'money back', 'policy'],
-    response: 'Our return policy allows returns within 30 days of purchase. Please ensure the item is in its original packaging. You can initiate a return from your order history page.'
-  },
-  {
-    keywords: ['payment', 'pay', 'credit card', 'paypal', 'payment methods', 'visa', 'mastercard', 'debit'],
-    response: 'We accept all major credit cards (Visa, MasterCard, American Express), PayPal, and bank transfers. All payments are securely processed.'
-  },
-  {
-    keywords: ['discount', 'coupon', 'promo', 'code', 'sale', 'offer'],
-    response: 'You can apply discount codes during checkout. Join our newsletter for exclusive offers and promotions! Use code "WELCOME10" for 10% off your first purchase.'
-  },
-  {
-    keywords: ['thank', 'thanks', 'appreciate', 'helpful'],
-    response: 'You\'re welcome! Is there anything else I can help you with today?'
-  },
-  {
-    keywords: ['goodbye', 'bye', 'see you', 'talk later', 'end chat'],
-    response: 'Thank you for chatting with us! Feel free to reach out anytime you need assistance. Have a great day!'
-  }
-];
-
-// Fallback general responses
-const fallbackResponses = [
-  "I'm not sure I understand your question. Could you please provide more details?",
-  "I'd like to help you with that. Could you please elaborate more on your inquiry?",
-  "I apologize, but I didn't quite catch that. Could you rephrase your question?",
-  "For this specific query, I'll need to connect you with one of our customer service representatives. They'll be with you shortly.",
-  "Thank you for your patience. Let me look into this for you. In the meantime, can you provide more information about your question?"
-];
-
 /**
- * Generate a response using Google's Gemini AI or fallback to keyword matching
+ * Generate a response using Google's Gemini AI
  * 
  * @param {string} message - The customer's message
  * @param {string} userId - Unique identifier for the user
@@ -103,9 +108,36 @@ async function generateLLMResponse(message, userId) {
     return "I'm here to help! Feel free to ask any questions about our products or services.";
   }
   
-  // If Gemini is not available, use fallback
+  // If Gemini is not available, return a default error message
   if (!usingLLM || !geminiModel) {
-    return generateFallbackResponse(message);
+    return "Sorry, our AI assistant is currently unavailable. Please try again later or contact customer support.";
+  }
+  
+  // Pre-process single-word or very short queries to be more specific
+  let processedMessage = message.trim();
+  if (processedMessage.length < 15) {
+    // Map of common short queries to more complete questions
+    const shortQueryMap = {
+      'shipping': 'Tell me about eShop\'s shipping options and delivery times.',
+      'delivery': 'What are eShop\'s delivery options and timeframes?',
+      'returns': 'What is eShop\'s return policy?',
+      'payment': 'What payment methods does eShop accept?',
+      'discount': 'Are there any current discounts or promotions at eShop?',
+      'products': 'What products does eShop sell?',
+      'contact': 'How can I contact eShop customer service?',
+      'order': 'How can I track my eShop order?'
+    };
+    
+    // Check if the message matches any short query keys
+    const lowercaseMsg = processedMessage.toLowerCase();
+    if (shortQueryMap[lowercaseMsg]) {
+      console.log(`[DEBUG] Expanding short query "${message}" to "${shortQueryMap[lowercaseMsg]}"`);
+      processedMessage = shortQueryMap[lowercaseMsg];
+    } else if (processedMessage.split(' ').length <= 2) {
+      // If it's just 1-2 words but not in our map, expand it to a question
+      processedMessage = `Tell me about ${processedMessage} at eShop.`;
+      console.log(`[DEBUG] Expanding generic short query to "${processedMessage}"`);
+    }
   }
   
   // Retrieve or initialize conversation history for this user
@@ -115,7 +147,7 @@ async function generateLLMResponse(message, userId) {
   
   const conversationHistory = userContexts.get(userId);
   
-  // Add the new message to conversation history
+  // Add the original message to conversation history (not the processed one)
   conversationHistory.push({
     role: 'user',
     content: message
@@ -128,17 +160,20 @@ async function generateLLMResponse(message, userId) {
   }));
   
   try {
-    // Start a new chat session
+    // Start a new chat session with system prompt as context
     const chat = geminiModel.startChat({
       history: formattedHistory,
       generationConfig: {
-        maxOutputTokens: 150,
-        temperature: 0.7,
+        maxOutputTokens: 250,  // Increased to allow for more complete responses
+        temperature: 0.3,      // Lowered for more focused and consistent responses
+        topP: 0.8,            // Added to further control response diversity
+        topK: 40,             // Added to limit token selection
       },
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, // Fixed format for Gemini API
     });
     
-    // Get response from Gemini
-    const result = await chat.sendMessage(message);
+    // Get response from Gemini - use the processed message for better results
+    const result = await chat.sendMessage(processedMessage);
     const assistantMessage = result.response.text().trim();
     
     // Add the assistant's response to conversation history
@@ -155,35 +190,9 @@ async function generateLLMResponse(message, userId) {
     return assistantMessage;
   } catch (error) {
     console.error('Error generating Gemini response:', error);
-    // Fall back to basic responses
-    return generateFallbackResponse(message);
+    // Return a default error message if LLM fails
+    return "Sorry, our AI assistant is currently unavailable. Please try again later or contact customer support.";
   }
-}
-
-/**
- * Generate a response using the fallback keyword system
- * 
- * @param {string} message - The customer's message
- * @return {string} The generated response
- */
-function generateFallbackResponse(message) {
-  if (!message || typeof message !== 'string') {
-    return "I'm here to help! Feel free to ask any questions about our products or services.";
-  }
-  
-  // Convert message to lowercase for case-insensitive matching
-  const lowercaseMessage = message.toLowerCase();
-  
-  // Check for matches in our response database
-  for (const item of responseDatabase) {
-    if (item.keywords.some(keyword => lowercaseMessage.includes(keyword))) {
-      return item.response;
-    }
-  }
-  
-  // If no match is found, return a random fallback response
-  const randomIndex = Math.floor(Math.random() * fallbackResponses.length);
-  return fallbackResponses[randomIndex];
 }
 
 /**
